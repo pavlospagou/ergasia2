@@ -1,0 +1,101 @@
+---
+title: "R Notebook for EMOS. Case study:Brazilian Ecommerce"
+output:
+  word_document: default
+  html_notebook: default
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(plyr)
+library(dplyr)
+sellers <- read.csv("./brazilian-ecommerce/olist_sellers_dataset.csv")
+product_category = read.csv("./brazilian-ecommerce/product_category_name_translation.csv")
+products = read.csv("./brazilian-ecommerce/olist_products_dataset.csv")
+reviews <-read.csv("./brazilian-ecommerce/olist_order_reviews_dataset.csv")
+orders <-  read.csv("./brazilian-ecommerce/olist_orders_dataset.csv")
+order_items <- read.csv("./brazilian-ecommerce/olist_order_items_dataset.csv")
+order_payments <- read.csv("./brazilian-ecommerce/olist_order_payments_dataset.csv")
+geolocation <- read.csv("./brazilian-ecommerce/olist_geolocation_dataset.csv")
+customers <- read.csv("./brazilian-ecommerce/olist_customers_dataset.csv")
+
+```
+
+Ερώτηση:Να γράψετε κώδικα που να βρίσκει από πόσοι πελάτες της επιχείρησης έχουν δηλώσει τοποθεσία το Ρίο ντε Τζαν
+
+```{r}
+customers %>% filter (customer_city == "rio de janeiro")%>% tally ()
+
+```
+
+
+Ερώτηση:Να υπολογίσετε το συνολικό κόστος (αγορα+μεταφορικά) των προϊόντων που αγοράστηκαν από το Sao Paoloel
+
+```{r}
+customers %>% left_join(orders, by = 'customer_id') %>% left_join(order_items, by = 'order_id') %>% group_by(customer_id) %>% summarise(total_products = sum(order_item_id)) %>% ungroup() %>% arrange(-total_products) %>% slice(1)
+```
+Ερώτηση:Να υπολογίσετε το συνολικό κόστος (αγορα+μεταφορικά) των προϊόντων που αγοράστηκαν από το Sao Paoloφή τ
+
+```{r}
+customers %>% filter (customer_city == "sao paulo") %>% left_join(orders, by = 'customer_id') %>% filter (order_status == "delivered") %>% left_join(order_items, by = 'order_id') %>% left_join(order_payments, by = 'order_id')%>% summarize (s = sum (freight_value + payment_value))
+```
+
+Ερώτηση:Να βρείτε τον τρόπο/τρόπους πληρωμής του πελάτη από το Ρίο ντε Τζανέιριο που είχε τις μεγαλύτερες από πλευράς κόστους
+ 
+```{r}
+customers %>% filter (customer_city == "rio de janeiro") %>% left_join (orders, by = 'customer_id') %>% left_join (order_payments, by = 'order_id') %>% group_by(order_id, payment_type) %>% filter(payment_type != 'not_defined') %>% summarise(s = sum (payment_value, na.rm = TRUE)) %>% ungroup() %>% arrange(-s) %>% slice(1)
+
+```
+
+Ερώτηση:Να βρείτε σε ποια ημερομηνία πραγματοποιήθηκαν οι περισσότερες αγορές σε μία μέραήν
+
+```{r}
+orders %>% left_join(order_items, by = 'order_id') %>% group_by(order_purchase_timestamp) %>% summarise(n_purchases = length(order_id)) %>% ungroup() %>% arrange(-n_purchases) %>% slice(1)
+```
+Ερώτηση:Να βρείτε σε ποιον μήνα πραγματοποιήθηκε η μεγαλύτερη εισροή εσόδων για την επιχείρησ 
+
+```{r}
+orders %>% mutate( month = format(as.POSIXct(as.character(order_purchase_timestamp), '%Y-%m-%d %T', tz = ''), "%m")) %>% filter (order_status == "delivered") %>% left_join (order_payments, by = 'order_id') %>% group_by (month) %>% summarize (s = sum (payment_value, na.rm = TRUE)) %>% ungroup() %>% arrange(-s) %>% slice(1)
+```
+
+Ερώτηση:Να εμφανίσετε την κατηγορία προϊόντος για κάθε έ
+να από τα προϊόντα που δεν παραδόθηκαν και που δεν απεστάλθη
+
+```{r}
+orders %>% filter(order_status != "delivered" & order_status != 'shipped') %>% left_join (order_items, by = 'order_id') %>% left_join (products, by = 'product_id') %>% select(product_category_name) %>% filter(!is.na(product_category_name)) %>% unique(.)
+```
+
+Ερώτηση: Ποια ήταν η πόλη του πιο δημοφιλούς(αριθμός πωλήσεων) sel
+
+
+```{r}
+order_items %>% inner_join(sellers) %>% group_by(seller_city) %>% summarise(sales_number = n()) %>% ungroup() %>% arrange(-sales_number) %>% slice(1)
+```
+
+Ερώτηση:Να βρείτε τα δύο προϊόντα με τις μεγαλύτερες σε πλήθος πωλήσεις που είχαν περισσότερες από 3 φωτογραφίες στην περιγραφ
+
+```{r}
+products %>% filter(product_photos_qty > 3) %>% left_join(order_items, by = 'product_id') %>% group_by(product_id) %>% summarize(number_of_orders = length(order_id)) %>% ungroup() %>% arrange(-number_of_orders) %>% slice(2)
+```
+
+Ερώτηση:Να βρείτε την κατηγορία προϊόντων που είχε τον καλύτερο μέσο όρο αξιολογήσεων
+
+
+```{r}
+products %>% inner_join(order_items, by = 'product_id') %>% inner_join(orders, by = 'order_id') %>% inner_join(reviews, by = 'order_id') %>% group_by(product_category_name) %>% summarise(average_rating  = mean (review_score, na.rm = TRUE)) %>% ungroup() %>% arrange(-average_rating) %>% slice(1)
+```
+
+Ερώτηση: Να υπολογίσετε το εβδομαδιαίο έσοδο αγορών της κατηγορίας esporte_lazer για τους Καλοκαιρινούς μήνε
+
+```{r}
+orders %>% mutate(month = format(as.POSIXct(as.character(order_approved_at), '%Y-%m-%d %T', tz = ''), "%m"), week = format(as.POSIXct(as.character(order_approved_at), '%Y-%m-%d %T', tz = ''), "%W")) %>% inner_join(order_items, by = 'order_id') %>% inner_join(products, by = 'product_id') %>% inner_join(order_payments, by = 'order_id') %>% filter(month %in% c('06', '07', '08') & product_category_name == "esporte_lazer") %>% group_by(month, week) %>% summarise(weekly_revenue = sum(payment_value))
+```
+
+Ερώτηση:Να βρείτε σε ποια κατηγορία προϊόντος αγοράζουν περισσότερο με την χρήση του τρόπου boleto στην περιοχή 
+
+```{r}
+customers %>% inner_join(orders, by = 'customer_id') %>% inner_join(order_payments, by = 'order_id') %>% inner_join(order_items, by = 'order_id') %>% inner_join(products, by = 'product_id') %>% filter(customer_state == 'MG' & payment_type == 'boleto') %>% group_by(product_category_name) %>% summarise(n_purchases = n()) %>% ungroup() %>% arrange(-n_purchases) %>% slice(1)
+```
+
+
